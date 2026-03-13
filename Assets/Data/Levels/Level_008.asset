@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bff48ce5b0b54424d87ac71a425f0be9, type: 3}
+  m_Name: Level_008
+  m_EditorClassIdentifier: Assembly-CSharp::TapAway.Data.LevelData
+  levelIndex: 8
+  gridSize: 4
+  movesLimit: 0
+  blocks:
+  - x: 2
+    y: 2
+    cellType: 2
+    direction: 0
+  - x: 1
+    y: 1
+    cellType: 3
+    direction: 0
+  - x: 0
+    y: 1
+    cellType: 1
+    direction: 0
+  - x: 1
+    y: 0
+    cellType: 1
+    direction: 1
+  - x: 3
+    y: 3
+    cellType: 1
+    direction: 3

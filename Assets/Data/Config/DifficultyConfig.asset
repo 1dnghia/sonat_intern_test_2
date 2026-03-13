@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e67c308aa18b67643aa645be9d7bf5a8, type: 3}
+  m_Name: DifficultyConfig
+  m_EditorClassIdentifier: Assembly-CSharp::TapAway.Data.DifficultyConfig
+  ranges:
+  - levelFrom: 0
+    levelTo: 0
+    gridSize: 3
+    blockDensityMin: 0
+    blockDensityMax: 0
+    gearRatio: 0
+    rotatorRatio: 0
+    movesBuffer: 0
+    targetScoreMin: 0
+    targetScoreMax: 0
+    minChainDepth: 0
+    maxChainDepth: 0
+    maxFreeBlocksAtStart: 0
