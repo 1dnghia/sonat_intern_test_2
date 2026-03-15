@@ -22,7 +22,7 @@ namespace TapAway
         private readonly Dictionary<MonoBehaviour, Block> _blockByView = new Dictionary<MonoBehaviour, Block>();
         private readonly Dictionary<Vector2Int, Block> _blockByPosition = new Dictionary<Vector2Int, Block>();
 
-        public void Build(GridSystem gridSystem)
+        public void Build(GridSystem gridSystem, LevelVisualTheme visualTheme, int trailBindingIndex)
         {
             UnsubscribeBlockEvents();
             ClearChildren();
@@ -53,7 +53,7 @@ namespace TapAway
                 GameObject go = Instantiate(prefab, transform);
                 go.transform.localPosition = ToLocalPosition(block.Position);
 
-                MonoBehaviour view = BindView(go, block);
+                MonoBehaviour view = BindView(go, block, visualTheme, trailBindingIndex);
                 if (view == null)
                 {
                     continue;
@@ -127,7 +127,7 @@ namespace TapAway
         {
             foreach (MonoBehaviour view in _viewByBlock.Values)
             {
-                if (view is BlockView blockView && blockView.IsRemoving)
+                if (view is BlockView blockView && (blockView.IsRemoving || blockView.IsPreparingRemove))
                 {
                     return true;
                 }
@@ -136,7 +136,7 @@ namespace TapAway
             return false;
         }
 
-        private MonoBehaviour BindView(GameObject go, Block block)
+        private MonoBehaviour BindView(GameObject go, Block block, LevelVisualTheme visualTheme, int trailBindingIndex)
         {
             switch (block.Type)
             {
@@ -164,6 +164,25 @@ namespace TapAway
                     if (view != null)
                     {
                         view.Initialise(block);
+
+                        bool hasBlockSprite = false;
+                        Sprite blockSprite = null;
+                        bool hasTrailColor = false;
+                        Color trailColor = Color.white;
+
+                        if (visualTheme != null && visualTheme.TryGetBindingByIndex(trailBindingIndex, out LevelVisualTheme.TrailBinding binding))
+                        {
+                            if (binding.BlockSprite != null)
+                            {
+                                hasBlockSprite = true;
+                                blockSprite = binding.BlockSprite;
+                            }
+
+                            hasTrailColor = true;
+                            trailColor = binding.TrailColor;
+                        }
+
+                        view.ApplyVisualTheme(hasBlockSprite, blockSprite, hasTrailColor, trailColor);
                     }
                     return view;
                 }

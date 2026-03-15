@@ -17,5 +17,11 @@ namespace TapAway.Core
 
         // Danh sách block xuất hiện trong level (vị trí, loại block, hướng).
         public List<BlockData> blocks = new List<BlockData>();
+
+        [Tooltip("Theme visual theo map: sprite block và màu trail.")]
+        public LevelVisualTheme visualTheme;
+
+        [Tooltip("Level này đang dùng Trail Binding nào trong LevelVisualTheme (0-based).")]
+        [Min(0)] public int trailBindingIndex = 0;
     }
 }

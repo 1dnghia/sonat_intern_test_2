@@ -6,7 +6,6 @@ namespace TapAway
 {
     public class BlockView : MonoBehaviour
     {
-        private const float MIN_TRAIL_LENGTH = 0.2f;
         private const float MIN_HALF_EXTENT = 0.25f;
         private const float MIN_TRAIL_WIDTH = 0.08f;
         private static Material _cachedTrailMaterial;
@@ -14,11 +13,9 @@ namespace TapAway
         // Mũi tên thể hiện hướng di chuyển của block.
         [SerializeField] private Transform _arrow;
         // Tốc độ trượt khi block bị remove.
-        [SerializeField, Min(0.1f)] private float _removeSlideSpeed = 10f;
+        [SerializeField, Min(0.1f)] private float _removeSlideSpeed = 20f;
         // Khoảng đệm ra ngoài mép màn hình trước khi ẩn block.
         [SerializeField, Min(0f)] private float _offscreenPadding = 0.25f;
-        // Độ dài vệt theo thời gian trượt (trailLength = speed * time).
-        [SerializeField, Min(0.01f)] private float _slideTrailTime = 0.2f;
         // Alpha sát block (đầu vệt), theo mockup là khoảng 0.7.
         [SerializeField, Range(0f, 1f)] private float _slideTrailHeadAlpha = 0.7f;
         // Alpha ở đuôi vệt, theo mockup là 0.
@@ -29,6 +26,7 @@ namespace TapAway
         [SerializeField, Min(0.01f)] private float _tapPressDownDuration = 0.05f;
         // Thời gian phục hồi scale về trạng thái ban đầu.
         [SerializeField, Min(0.01f)] private float _tapPressUpDuration = 0.08f;
+        [SerializeField] private Material _trailMaterialOverride;
 
         private Block _block;
         private Camera _mainCamera;
@@ -37,10 +35,15 @@ namespace TapAway
         private Coroutine _prepareRemoveCoroutine;
         private Gradient _trailGradient;
         private bool _isRemoving;
+        private bool _isPreparingRemove;
+        private bool _hasTrailColorOverride;
         private Vector3 _removeDirection;
+        private Vector3 _removeStartWorldPosition;
         private Vector3 _initialLocalScale;
+        private Color _trailColorOverride = Color.white;
 
         public bool IsRemoving => _isRemoving;
+        public bool IsPreparingRemove => _isPreparingRemove;
 
         private void Awake()
         {
@@ -56,6 +59,7 @@ namespace TapAway
             _block.Removed += OnRemoved;
 
             _isRemoving = false;
+            _isPreparingRemove = false;
             transform.localScale = _initialLocalScale;
 
             if (_prepareRemoveCoroutine != null)
@@ -72,6 +76,25 @@ namespace TapAway
             _mainSpriteRenderer = ResolveMainSpriteRenderer();
             SyncSlideTrailSorting();
             RefreshDirection();
+        }
+
+        public void ApplyVisualTheme(bool hasBlockSprite, Sprite blockSprite, bool hasTrailColor, Color trailColor)
+        {
+            _hasTrailColorOverride = hasTrailColor;
+            _trailColorOverride = trailColor;
+
+            // Nhận Sprite từ SO, gán vào SpriteRenderer
+            if (hasBlockSprite && blockSprite != null)
+            {
+                if (_mainSpriteRenderer == null)
+                {
+                    _mainSpriteRenderer = ResolveMainSpriteRenderer();
+                }
+                if (_mainSpriteRenderer != null)
+                {
+                    _mainSpriteRenderer.sprite = blockSprite;
+                }
+            }
         }
 
         private void OnDestroy()
@@ -102,6 +125,7 @@ namespace TapAway
             }
 
             _isRemoving = false;
+            _isPreparingRemove = false;
             transform.localScale = _initialLocalScale;
             if (_slideTrailRenderer != null)
             {
@@ -130,6 +154,8 @@ namespace TapAway
             }
 
             _removeDirection = DirectionToVector(_block.Direction).normalized;
+            _removeStartWorldPosition = transform.position;
+            _isPreparingRemove = true;
 
             if (_prepareRemoveCoroutine != null)
             {
@@ -155,6 +181,7 @@ namespace TapAway
                 UpdateSlideTrail();
             }
 
+            _isPreparingRemove = false;
             _isRemoving = true;
             _prepareRemoveCoroutine = null;
         }
@@ -202,8 +229,9 @@ namespace TapAway
             _slideTrailRenderer.textureMode = LineTextureMode.Stretch;
             _slideTrailRenderer.numCapVertices = 0;
             _slideTrailRenderer.numCornerVertices = 0;
+            _slideTrailRenderer.widthCurve = AnimationCurve.Constant(0f, 1f, 1f);
 
-            Material trailMaterial = GetOrCreateTrailMaterial();
+            Material trailMaterial = _trailMaterialOverride != null ? _trailMaterialOverride : GetOrCreateTrailMaterial();
             if (trailMaterial != null)
             {
                 _slideTrailRenderer.sharedMaterial = trailMaterial;
@@ -220,26 +248,21 @@ namespace TapAway
             }
 
             Vector3 direction = _removeDirection.normalized;
-            Vector3 reverse = -direction;
-            float trailLength = Mathf.Max(MIN_TRAIL_LENGTH, _removeSlideSpeed * _slideTrailTime);
-
             float halfWidth = GetVisualHalfWidth();
             float halfHeight = GetVisualHalfHeight();
-            float halfExtentAlongDirection = Mathf.Abs(direction.x) > Mathf.Abs(direction.y) ? halfWidth : halfHeight;
             float fullEdgeWidth = Mathf.Abs(direction.x) > Mathf.Abs(direction.y) ? halfHeight * 2f : halfWidth * 2f;
 
-            Vector3 head = transform.position + reverse * halfExtentAlongDirection;
-            Vector3 tail = head + reverse * trailLength;
+            Vector3 startPos = transform.position;
+            Vector3 endPos = _removeStartWorldPosition;
 
-            // Point 0 là gần block (alpha cao), point 1 là đuôi (alpha thấp).
-            _slideTrailRenderer.SetPosition(0, head);
-            _slideTrailRenderer.SetPosition(1, tail);
+            // Point 0 gần block, point 1 là đuôi trail.
+            _slideTrailRenderer.SetPosition(0, startPos);
+            _slideTrailRenderer.SetPosition(1, endPos);
 
             float width = Mathf.Max(MIN_TRAIL_WIDTH, fullEdgeWidth);
-            _slideTrailRenderer.startWidth = width;
-            _slideTrailRenderer.endWidth = width;
+            _slideTrailRenderer.widthMultiplier = width;
 
-            Color baseColor = GetBlockBaseColor();
+            Color baseColor = _hasTrailColorOverride ? _trailColorOverride : GetBlockBaseColor();
             ApplyTrailGradient(baseColor);
         }
 

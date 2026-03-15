@@ -106,7 +106,7 @@ namespace TapAway
             _gridSystem.Build(levelData);
             if (_gridView != null)
             {
-                _gridView.Build(_gridSystem);
+                _gridView.Build(_gridSystem, levelData.visualTheme, levelData.trailBindingIndex);
             }
 
             _movesLeft = levelData.moveLimit > 0 ? levelData.moveLimit : -1;

@@ -10,6 +10,9 @@ namespace TapAway.Editor
     public class LevelGeneratorWindow : EditorWindow
     {
         private DifficultyConfig _config;
+        private LevelVisualTheme _visualTheme;
+        private bool _randomTrailBinding = true;
+        private int _fixedTrailBindingIndex;
         private int _count = 1;
         private int _startIndex = 100;
 
@@ -22,6 +25,12 @@ namespace TapAway.Editor
         private void OnGUI()
         {
             _config = (DifficultyConfig)EditorGUILayout.ObjectField("Difficulty Config", _config, typeof(DifficultyConfig), false);
+            _visualTheme = (LevelVisualTheme)EditorGUILayout.ObjectField("Level Visual Theme", _visualTheme, typeof(LevelVisualTheme), false);
+            _randomTrailBinding = EditorGUILayout.Toggle("Random Trail Binding", _randomTrailBinding);
+            if (!_randomTrailBinding)
+            {
+                _fixedTrailBindingIndex = EditorGUILayout.IntField("Fixed Trail Binding Index", _fixedTrailBindingIndex);
+            }
             _count = EditorGUILayout.IntSlider("Generate Count", _count, 1, 20);
             _startIndex = EditorGUILayout.IntField("Start Index", _startIndex);
 
@@ -53,6 +62,8 @@ namespace TapAway.Editor
                 level.height = h;
                 level.moveLimit = move;
                 level.blocks = GenerateBlocks(w, h, blockCount);
+                level.visualTheme = _visualTheme;
+                level.trailBindingIndex = ResolveTrailBindingIndex(_visualTheme, _randomTrailBinding, _fixedTrailBindingIndex);
 
                 string path = $"{dir}/Level_{_startIndex + i:000}.asset";
                 AssetDatabase.CreateAsset(level, path);
@@ -102,6 +113,21 @@ namespace TapAway.Editor
             }
 
             return result;
+        }
+
+        private static int ResolveTrailBindingIndex(LevelVisualTheme visualTheme, bool randomTrailBinding, int fixedTrailBindingIndex)
+        {
+            if (visualTheme == null || visualTheme.TrailBindingCount <= 0)
+            {
+                return 0;
+            }
+
+            if (randomTrailBinding)
+            {
+                return Random.Range(0, visualTheme.TrailBindingCount);
+            }
+
+            return Mathf.Clamp(fixedTrailBindingIndex, 0, visualTheme.TrailBindingCount - 1);
         }
     }
 }
