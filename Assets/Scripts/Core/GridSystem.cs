@@ -5,6 +5,30 @@ namespace TapAway.Core
 {
     public class GridSystem
     {
+        private readonly struct RotatorLinkedNormal
+        {
+            public RotatorLinkedNormal(Block block, Vector2Int anchorPosition)
+            {
+                Block = block;
+                AnchorPosition = anchorPosition;
+            }
+
+            public Block Block { get; }
+            public Vector2Int AnchorPosition { get; }
+        }
+
+        private static readonly Vector2Int[] ROTATOR_LINK_OFFSETS =
+        {
+            new Vector2Int(-1, -1),
+            new Vector2Int(0, -1),
+            new Vector2Int(1, -1),
+            new Vector2Int(-1, 0),
+            new Vector2Int(1, 0),
+            new Vector2Int(-1, 1),
+            new Vector2Int(0, 1),
+            new Vector2Int(1, 1),
+        };
+
         private static readonly Vector2Int[] ADJACENT_OFFSETS =
         {
             new Vector2Int(-1, -1),
@@ -19,9 +43,20 @@ namespace TapAway.Core
 
         public int Width { get; private set; }
         public int Height { get; private set; }
+        public int MinX => _minX;
+        public int MaxX => _maxX;
+        public int MinY => _minY;
+        public int MaxY => _maxY;
+
+        private int _minX;
+        private int _maxX;
+        private int _minY;
+        private int _maxY;
 
         private readonly Dictionary<Vector2Int, Block> _blocksByPosition = new Dictionary<Vector2Int, Block>();
         private readonly List<Block> _allBlocks = new List<Block>();
+        private readonly Dictionary<Vector2Int, List<RotatorLinkedNormal>> _rotatorLinkedNormalsByPosition =
+            new Dictionary<Vector2Int, List<RotatorLinkedNormal>>();
 
         public IReadOnlyList<Block> Blocks => _allBlocks;
 
@@ -29,6 +64,7 @@ namespace TapAway.Core
         {
             _blocksByPosition.Clear();
             _allBlocks.Clear();
+            _rotatorLinkedNormalsByPosition.Clear();
 
             if (levelData == null)
             {
@@ -39,11 +75,28 @@ namespace TapAway.Core
 
             Width = levelData.width;
             Height = levelData.height;
+            ConfigureGridBounds(levelData);
+
+            if (levelData.blocks == null)
+            {
+                return;
+            }
 
             foreach (BlockData blockData in levelData.blocks)
             {
+                if (blockData.cellType == CellType.Empty)
+                {
+                    continue;
+                }
+
                 if (_blocksByPosition.ContainsKey(blockData.position))
                 {
+                    continue;
+                }
+
+                if (blockData.cellType == CellType.Rotator && !HasLinkedNormalInLevelData(levelData, blockData))
+                {
+                    // Rotator chỉ hợp lệ khi có ít nhất 1 Normal block liên kết xung quanh.
                     continue;
                 }
 
@@ -52,7 +105,143 @@ namespace TapAway.Core
                 block.Moved += OnBlockMoved;
                 _blocksByPosition.Add(blockData.position, block);
                 _allBlocks.Add(block);
+
             }
+
+            BuildRotatorLinks(levelData);
+        }
+
+        private void BuildRotatorLinks(LevelData levelData)
+        {
+            if (levelData == null || levelData.blocks == null)
+            {
+                return;
+            }
+
+            HashSet<Block> linkedNormals = new HashSet<Block>();
+
+            for (int i = 0; i < levelData.blocks.Count; i++)
+            {
+                BlockData blockData = levelData.blocks[i];
+                if (blockData.cellType != CellType.Rotator)
+                {
+                    continue;
+                }
+
+                if (!TryGetBlock(blockData.position, out Block rotator) || rotator.Type != CellType.Rotator)
+                {
+                    continue;
+                }
+
+                List<Vector2Int> linkedPositions = CollectRotatorLinks(levelData, blockData);
+                if (linkedPositions.Count == 0)
+                {
+                    continue;
+                }
+
+                List<RotatorLinkedNormal> linkedBlocks = new List<RotatorLinkedNormal>();
+                for (int j = 0; j < linkedPositions.Count; j++)
+                {
+                    Vector2Int linkedPosition = linkedPositions[j];
+                    if (!TryGetBlock(linkedPosition, out Block linkedBlock))
+                    {
+                        continue;
+                    }
+
+                    if (linkedBlock.Type != CellType.Normal || linkedBlock.IsRemoved || linkedNormals.Contains(linkedBlock))
+                    {
+                        continue;
+                    }
+
+                    linkedBlocks.Add(new RotatorLinkedNormal(linkedBlock, linkedPosition));
+                    linkedNormals.Add(linkedBlock);
+                }
+
+                if (linkedBlocks.Count > 0)
+                {
+                    _rotatorLinkedNormalsByPosition[rotator.Position] = linkedBlocks;
+                }
+            }
+        }
+
+        private static bool HasLinkedNormalInLevelData(LevelData levelData, BlockData rotator)
+        {
+            if (levelData == null || levelData.blocks == null)
+            {
+                return false;
+            }
+
+            if (rotator != null && rotator.rotatorLinkedNormals != null)
+            {
+                for (int i = 0; i < rotator.rotatorLinkedNormals.Count; i++)
+                {
+                    Vector2Int linkedPos = rotator.rotatorLinkedNormals[i];
+                    for (int j = 0; j < levelData.blocks.Count; j++)
+                    {
+                        BlockData blockData = levelData.blocks[j];
+                        if (blockData.position == linkedPos && blockData.cellType == CellType.Normal)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        private static List<Vector2Int> CollectRotatorLinks(LevelData levelData, BlockData rotator)
+        {
+            List<Vector2Int> result = new List<Vector2Int>();
+            if (rotator == null)
+            {
+                return result;
+            }
+
+            if (rotator.rotatorLinkedNormals != null)
+            {
+                for (int i = 0; i < rotator.rotatorLinkedNormals.Count; i++)
+                {
+                    Vector2Int linkedPos = rotator.rotatorLinkedNormals[i];
+                    if (result.Contains(linkedPos))
+                    {
+                        continue;
+                    }
+
+                    if (!ContainsNormalAt(levelData, linkedPos))
+                    {
+                        continue;
+                    }
+
+                    result.Add(linkedPos);
+                }
+            }
+
+            if (result.Count > 0)
+            {
+                return result;
+            }
+
+            return result;
+        }
+
+        private static bool ContainsNormalAt(LevelData levelData, Vector2Int position)
+        {
+            if (levelData == null || levelData.blocks == null)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < levelData.blocks.Count; i++)
+            {
+                BlockData blockData = levelData.blocks[i];
+                if (blockData.position == position && blockData.cellType == CellType.Normal)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public bool TryGetBlock(Vector2Int position, out Block block)
@@ -80,6 +269,60 @@ namespace TapAway.Core
 
             Vector2Int step = DirectionToOffset(block.Direction);
             Vector2Int cursor = block.Position + step;
+            Vector2Int lastFreePosition = block.Position;
+            Block blockingObstacle = null;
+
+            while (IsInsideGrid(cursor))
+            {
+                if (TryGetBlock(cursor, out Block obstacle))
+                {
+                    blockingObstacle = obstacle;
+                    break;
+                }
+
+                lastFreePosition = cursor;
+                cursor += step;
+            }
+
+            if (blockingObstacle != null)
+            {
+                if (blockingObstacle.Type == CellType.Gear)
+                {
+                    // Block bị cắt khi hướng đi đâm thẳng vào Gear.
+                    block.TryRemove();
+                    return true;
+                }
+
+                CollectBlockingChain(blockingObstacle.Position, step, blockerChain);
+
+                if (lastFreePosition != block.Position)
+                {
+                    block.TryMoveTo(lastFreePosition);
+                    return true;
+                }
+
+                return false;
+            }
+
+            if (lastFreePosition != block.Position)
+            {
+                block.TryMoveTo(lastFreePosition);
+            }
+
+            block.TryRemove();
+            return true;
+        }
+
+        public bool CanTapNormalChangeState(Block block)
+        {
+            if (block == null || block.IsRemoved || block.Type != CellType.Normal)
+            {
+                return false;
+            }
+
+            Vector2Int step = DirectionToOffset(block.Direction);
+            Vector2Int cursor = block.Position + step;
+            bool hasFreeCellAhead = false;
 
             while (IsInsideGrid(cursor))
             {
@@ -87,20 +330,52 @@ namespace TapAway.Core
                 {
                     if (obstacle.Type == CellType.Gear)
                     {
-                        // Block bị cắt khi hướng đi đâm thẳng vào Gear.
-                        block.TryRemove();
                         return true;
                     }
 
+                    return hasFreeCellAhead;
+                }
+
+                hasFreeCellAhead = true;
+                cursor += step;
+            }
+
+            // Không gặp obstacle đến biên nghĩa là có thể thoát khỏi grid.
+            return true;
+        }
+
+        public bool IsNormalBlocked(Block block, List<Block> blockerChain)
+        {
+            if (block == null || block.IsRemoved || block.Type != CellType.Normal)
+            {
+                return false;
+            }
+
+            if (blockerChain != null)
+            {
+                blockerChain.Clear();
+            }
+
+            Vector2Int step = DirectionToOffset(block.Direction);
+            Vector2Int cursor = block.Position + step;
+
+            while (IsInsideGrid(cursor))
+            {
+                if (TryGetBlock(cursor, out Block obstacle))
+                {
+                    if (obstacle.Type == CellType.Gear)
+                    {
+                        return false;
+                    }
+
                     CollectBlockingChain(cursor, step, blockerChain);
-                    return false;
+                    return true;
                 }
 
                 cursor += step;
             }
 
-            block.TryRemove();
-            return true;
+            return false;
         }
 
         public bool TryTapRotator(Block rotator)
@@ -111,48 +386,196 @@ namespace TapAway.Core
             }
 
             List<Block> rotateBlocks = new List<Block>();
-            List<Vector2Int> targetPositions = new List<Vector2Int>();
-
-            for (int i = 0; i < ADJACENT_OFFSETS.Length; i++)
-            {
-                Vector2Int sourcePos = rotator.Position + ADJACENT_OFFSETS[i];
-                if (!TryGetBlock(sourcePos, out Block candidate))
-                {
-                    continue;
-                }
-
-                if (candidate.Type != CellType.Normal)
-                {
-                    continue;
-                }
-
-                Vector2Int targetPos = RotateClockwise(sourcePos, rotator.Position);
-                if (!IsInsideGrid(targetPos))
-                {
-                    return false;
-                }
-
-                if (TryGetBlock(targetPos, out _))
-                {
-                    return false;
-                }
-
-                rotateBlocks.Add(candidate);
-                targetPositions.Add(targetPos);
-            }
-
+            CollectRotatorLinkedBlocks(rotator, rotateBlocks);
             if (rotateBlocks.Count == 0)
             {
                 return false;
             }
 
-            for (int i = 0; i < rotateBlocks.Count; i++)
+            List<Vector2Int> targetPositions = new List<Vector2Int>();
+
+            for (int stepCount = 1; stepCount <= 3; stepCount++)
             {
-                rotateBlocks[i].TryMoveTo(targetPositions[i]);
+                targetPositions.Clear();
+                if (!TryBuildRotatorTargets(rotator, rotateBlocks, stepCount, targetPositions))
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < rotateBlocks.Count; i++)
+                {
+                    rotateBlocks[i].TryMoveTo(targetPositions[i]);
+                }
+
+                for (int i = 0; i < stepCount; i++)
+                {
+                    rotator.TryRotateClockwise();
+                }
+
+                return true;
             }
 
-            rotator.TryRotateClockwise();
-            return true;
+            return false;
+        }
+
+        public bool CanAnyRotatorMove()
+        {
+            for (int i = 0; i < _allBlocks.Count; i++)
+            {
+                Block block = _allBlocks[i];
+                if (block == null || block.IsRemoved || block.Type != CellType.Rotator)
+                {
+                    continue;
+                }
+
+                if (CanRotatorMove(block))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public bool CanRotatorMove(Block rotator)
+        {
+            if (rotator == null || rotator.IsRemoved || rotator.Type != CellType.Rotator)
+            {
+                return false;
+            }
+
+            List<Block> rotateBlocks = new List<Block>();
+            CollectRotatorLinkedBlocks(rotator, rotateBlocks);
+            if (rotateBlocks.Count == 0)
+            {
+                return false;
+            }
+
+            List<Vector2Int> targets = new List<Vector2Int>();
+            for (int stepCount = 1; stepCount <= 3; stepCount++)
+            {
+                if (TryBuildRotatorTargets(rotator, rotateBlocks, stepCount, targets))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public void GetRotatorLinkedPositions(Block rotator, List<Vector2Int> output)
+        {
+            if (output == null)
+            {
+                return;
+            }
+
+            output.Clear();
+            if (rotator == null || rotator.Type != CellType.Rotator)
+            {
+                return;
+            }
+
+            if (_rotatorLinkedNormalsByPosition.TryGetValue(rotator.Position, out List<RotatorLinkedNormal> linkedBlocks)
+                && linkedBlocks != null
+                && linkedBlocks.Count > 0)
+            {
+                for (int i = 0; i < linkedBlocks.Count; i++)
+                {
+                    RotatorLinkedNormal linkedNormal = linkedBlocks[i];
+                    Block linkedBlock = linkedNormal.Block;
+                    if (linkedBlock == null || linkedBlock.IsRemoved || linkedBlock.Type != CellType.Normal)
+                    {
+                        continue;
+                    }
+
+                    // Normal rời anchor thì link bị tắt.
+                    if (linkedBlock.Position != linkedNormal.AnchorPosition)
+                    {
+                        continue;
+                    }
+
+                    output.Add(linkedBlock.Position);
+                }
+            }
+        }
+
+        private void CollectRotatorLinkedBlocks(Block rotator, List<Block> output)
+        {
+            if (output == null)
+            {
+                return;
+            }
+
+            output.Clear();
+            if (rotator == null || rotator.IsRemoved || rotator.Type != CellType.Rotator)
+            {
+                return;
+            }
+
+            if (_rotatorLinkedNormalsByPosition.TryGetValue(rotator.Position, out List<RotatorLinkedNormal> linkedBlocks)
+                && linkedBlocks != null
+                && linkedBlocks.Count > 0)
+            {
+                for (int i = 0; i < linkedBlocks.Count; i++)
+                {
+                    RotatorLinkedNormal linkedNormal = linkedBlocks[i];
+                    Block linkedBlock = linkedNormal.Block;
+                    if (linkedBlock == null || linkedBlock.IsRemoved || linkedBlock.Type != CellType.Normal)
+                    {
+                        continue;
+                    }
+
+                    if (linkedBlock.Position != linkedNormal.AnchorPosition)
+                    {
+                        continue;
+                    }
+
+                    output.Add(linkedBlock);
+                }
+            }
+        }
+
+        private bool TryBuildRotatorTargets(
+            Block rotator,
+            List<Block> rotateBlocks,
+            int stepCount,
+            List<Vector2Int> targetPositions)
+        {
+            if (rotator == null || rotateBlocks == null || targetPositions == null)
+            {
+                return false;
+            }
+
+            targetPositions.Clear();
+            for (int i = 0; i < rotateBlocks.Count; i++)
+            {
+                Block candidate = rotateBlocks[i];
+                if (candidate == null || candidate.IsRemoved || candidate.Type != CellType.Normal)
+                {
+                    return false;
+                }
+
+                Vector2Int targetPos = RotateClockwise(candidate.Position, rotator.Position, stepCount);
+                if (!IsInsideGrid(targetPos))
+                {
+                    return false;
+                }
+
+                if (targetPositions.Contains(targetPos))
+                {
+                    return false;
+                }
+
+                if (TryGetBlock(targetPos, out Block occupied) && !rotateBlocks.Contains(occupied))
+                {
+                    return false;
+                }
+
+                targetPositions.Add(targetPos);
+            }
+
+            return targetPositions.Count > 0;
         }
 
         public int RemainingRemovableCount()
@@ -200,7 +623,61 @@ namespace TapAway.Core
 
         private bool IsInsideGrid(Vector2Int cell)
         {
-            return cell.x >= 0 && cell.x < Width && cell.y >= 0 && cell.y < Height;
+            return cell.x >= _minX && cell.x <= _maxX && cell.y >= _minY && cell.y <= _maxY;
+        }
+
+        private void ConfigureGridBounds(LevelData levelData)
+        {
+            if (levelData == null)
+            {
+                _minX = 0;
+                _maxX = -1;
+                _minY = 0;
+                _maxY = -1;
+                return;
+            }
+
+            bool isZeroBased = AreAllBlocksWithinZeroBasedBounds(levelData);
+            if (isZeroBased)
+            {
+                _minX = 0;
+                _maxX = Mathf.Max(0, Width - 1);
+                _minY = 0;
+                _maxY = Mathf.Max(0, Height - 1);
+                return;
+            }
+
+            // Hỗ trợ level handcraft kiểu centered coordinates (ví dụ -1,0,1).
+            _minX = -Mathf.FloorToInt(Width * 0.5f);
+            _maxX = _minX + Width - 1;
+            _minY = -Mathf.FloorToInt(Height * 0.5f);
+            _maxY = _minY + Height - 1;
+        }
+
+        private static bool AreAllBlocksWithinZeroBasedBounds(LevelData levelData)
+        {
+            if (levelData == null || levelData.blocks == null)
+            {
+                return true;
+            }
+
+            int width = Mathf.Max(0, levelData.width);
+            int height = Mathf.Max(0, levelData.height);
+            for (int i = 0; i < levelData.blocks.Count; i++)
+            {
+                BlockData blockData = levelData.blocks[i];
+                if (blockData.position.x < 0 || blockData.position.x >= width)
+                {
+                    return false;
+                }
+
+                if (blockData.position.y < 0 || blockData.position.y >= height)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         private static Vector2Int DirectionToOffset(BlockDirection direction)
@@ -218,13 +695,20 @@ namespace TapAway.Core
             }
         }
 
-        private static Vector2Int RotateClockwise(Vector2Int source, Vector2Int pivot)
+        private static Vector2Int RotateClockwise(Vector2Int source, Vector2Int pivot, int stepCount)
         {
-            int relX = source.x - pivot.x;
-            int relY = source.y - pivot.y;
-            int newX = pivot.x + relY;
-            int newY = pivot.y - relX;
-            return new Vector2Int(newX, newY);
+            Vector2Int result = source;
+            int steps = Mathf.Clamp(stepCount, 1, 3);
+            for (int i = 0; i < steps; i++)
+            {
+                int relX = result.x - pivot.x;
+                int relY = result.y - pivot.y;
+                int newX = pivot.x + relY;
+                int newY = pivot.y - relX;
+                result = new Vector2Int(newX, newY);
+            }
+
+            return result;
         }
 
         private void CollectBlockingChain(Vector2Int start, Vector2Int step, List<Block> blockerChain)
