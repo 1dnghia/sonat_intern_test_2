@@ -1,0 +1,58 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Folders_Root
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Folders_Root
+  m_GUID: 94c222fc8faaa8249acf90716ef04361
+  m_SerializeEntries:
+  - m_GUID: 06aead4634d118d4c846182a19fc350c
+    m_Address: folders/audio/bgm
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 0f183ce9b881ff8449b80f496fc34c75
+    m_Address: folders/prefabs
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 320b23c8d66f42644b2b7dd08ad22f0a
+    m_Address: folders/audio/sfx/gameplay
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 322ef8dfe1947a746b01dbc0d571d3c3
+    m_Address: folders/data/levels
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: 3574663845bef824698dbd1ce8417cf2
+    m_Address: folders/data
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d9f2b1aa6882b094bbad107ef02ab736
+    m_Address: folders/audio/sfx/ui
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: fe451ef05b2b2a24096f98bc1513dd55
+    m_Address: folders/audio
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: a5654f3dbe97e9944947b2914a3898b9, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: 112135c13c8fe1e4ea72ac3eaba3e7e1, type: 2}
+    - {fileID: 11400000, guid: 5718b587f2b5c4841a1287b1ba7df6ad, type: 2}

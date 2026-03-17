@@ -1,0 +1,38 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Audio_SFX_Gameplay
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Audio_SFX_Gameplay
+  m_GUID: 74e8324cd5e134a4580616d58fe02fa6
+  m_SerializeEntries:
+  - m_GUID: a2bfd219256c59b4a983396babc71be0
+    m_Address: audio/sfx/gameplay/506052__mellau__button-click-3
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d4c2cedcd85325949986bd72dfa61238
+    m_Address: audio/sfx/gameplay/506054__mellau__button-click-1
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: f3942e9983dacfd499a4a3653bfa79ac
+    m_Address: audio/sfx/gameplay/506053__mellau__button-click-2
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: a5654f3dbe97e9944947b2914a3898b9, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: f98a7454e0d1af54699665c663ad1484, type: 2}
+    - {fileID: 11400000, guid: 9745576df6e531c489eb683f6fc0bc7c, type: 2}

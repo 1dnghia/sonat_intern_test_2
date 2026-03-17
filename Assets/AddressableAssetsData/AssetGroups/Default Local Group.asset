@@ -14,7 +14,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
   m_GroupName: Default Local Group
   m_GUID: 200ee38651a71fe44ad9352a218cb573
-  m_SerializeEntries: []
+  m_SerializeEntries:
+  - m_GUID: d6bfae4320894804b809f7025b1b07b7
+    m_Address: folders/audio/SFX
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
   m_ReadOnly: 0
   m_Settings: {fileID: 11400000, guid: a5654f3dbe97e9944947b2914a3898b9, type: 2}
   m_SchemaSet:

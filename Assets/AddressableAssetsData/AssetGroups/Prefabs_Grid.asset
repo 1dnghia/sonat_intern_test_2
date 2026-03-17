@@ -1,0 +1,43 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bbb281ee3bf0b054c82ac2347e9e782c, type: 3}
+  m_Name: Prefabs_Grid
+  m_EditorClassIdentifier: Unity.Addressables.Editor::UnityEditor.AddressableAssets.Settings.AddressableAssetGroup
+  m_GroupName: Prefabs_Grid
+  m_GUID: 99b6c35d2782da34d843135572493310
+  m_SerializeEntries:
+  - m_GUID: 513203e9c4212cf49bd90c42ae48b3cf
+    m_Address: prefabs/grid/rotator_block
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: a8aebdace0c41fe47929d28317c5a42e
+    m_Address: prefabs/rotator/link
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: bb6467e407547e3469fab008141566c0
+    m_Address: prefabs/grid/normal_block
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  - m_GUID: d77216d095ca3aa41acc2c172f9d41a3
+    m_Address: prefabs/grid/gear_block
+    m_ReadOnly: 0
+    m_SerializedLabels: []
+    FlaggedDuringContentUpdateRestriction: 0
+  m_ReadOnly: 0
+  m_Settings: {fileID: 11400000, guid: a5654f3dbe97e9944947b2914a3898b9, type: 2}
+  m_SchemaSet:
+    m_Schemas:
+    - {fileID: 11400000, guid: 94d7763a137c5ff4988f92494bbfa8d1, type: 2}
+    - {fileID: 11400000, guid: e3b6f51b640a2634c9b4aa9913eb8c0f, type: 2}
