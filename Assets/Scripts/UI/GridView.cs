@@ -2,25 +2,64 @@ using System.Collections.Generic;
 using System.Collections;
 using TapAway.Core;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace TapAway
 {
     public class GridView : MonoBehaviour
     {
-        [SerializeField] private GameObject _normalBlockPrefab;
-        [SerializeField] private GameObject _gearBlockPrefab;
-        [SerializeField] private GameObject _rotatorBlockPrefab;
-        [SerializeField, Min(0.1f)] private float _cellSize = 1f;
+        [Header("Prefab Source")]
+        [SerializeField] private AssetReferenceT<GameObject> _normalBlockPrefabRef;
+        [SerializeField] private AssetReferenceT<GameObject> _gearBlockPrefabRef;
+        [SerializeField] private AssetReferenceT<GameObject> _rotatorBlockPrefabRef;
+        // Kích thước mỗi ô grid theo world unit.
+        [SerializeField, Min(0.1f)] private float _cellSize = 2f;
+        // Khoảng cách thêm giữa các block theo world unit.
+        [SerializeField, Min(0f)] private float _blockSpacing = 0f;
         [Header("Blocked Feedback")]
+        // Độ trễ giữa mỗi block trong chuỗi rung domino.
         [SerializeField, Min(0f)] private float _blockedShakeStepDelay = 0.07f;
+        // Thời lượng rung của từng block.
         [SerializeField, Min(0.01f)] private float _blockedShakeDuration = 0.16f;
+        // Biên độ rung ngang của block bị chặn.
         [SerializeField, Min(0f)] private float _blockedShakeDistance = 0.06f;
+        // Thời gian giữ màu cảnh báo cho block chặn đầu tiên.
         [SerializeField, Min(0.01f)] private float _warnFlashDuration = 0.2f;
+        // Màu cảnh báo cho block chặn đầu tiên.
         [SerializeField] private Color _warnFlashColor = new Color(1f, 0.5f, 0.35f, 1f);
 
         private readonly Dictionary<Block, MonoBehaviour> _viewByBlock = new Dictionary<Block, MonoBehaviour>();
         private readonly Dictionary<MonoBehaviour, Block> _blockByView = new Dictionary<MonoBehaviour, Block>();
         private readonly Dictionary<Vector2Int, Block> _blockByPosition = new Dictionary<Vector2Int, Block>();
+        private readonly List<SpriteRenderer> _warnRendererBuffer = new List<SpriteRenderer>();
+        private Coroutine _softlockFeedbackCoroutine;
+        private Coroutine _refreshLinksCoroutine;
+        private GridSystem _activeGridSystem;
+        private float _gridCenterCellX;
+        private float _gridCenterCellY;
+        private bool _isReady;
+        private GameObject _normalBlockPrefab;
+        private GameObject _gearBlockPrefab;
+        private GameObject _rotatorBlockPrefab;
+        private AsyncOperationHandle<GameObject> _normalPrefabHandle;
+        private AsyncOperationHandle<GameObject> _gearPrefabHandle;
+        private AsyncOperationHandle<GameObject> _rotatorPrefabHandle;
+
+        public float CellPitch => _cellSize + _blockSpacing;
+        public bool IsReady => _isReady;
+
+        private void Awake()
+        {
+            StartCoroutine(PreloadAddressablePrefabs());
+        }
+
+        private void OnDestroy()
+        {
+            ReleaseHandleIfValid(_normalPrefabHandle);
+            ReleaseHandleIfValid(_gearPrefabHandle);
+            ReleaseHandleIfValid(_rotatorPrefabHandle);
+        }
 
         public void Build(GridSystem gridSystem, LevelVisualTheme visualTheme, int trailBindingIndex)
         {
@@ -30,9 +69,29 @@ namespace TapAway
             _blockByView.Clear();
             _blockByPosition.Clear();
 
+            // Luon reset root grid ve (0,0) de tam grid trung voi world origin.
+            if (transform.parent != null)
+            {
+                transform.localPosition = new Vector3(0f, 0f, transform.localPosition.z);
+            }
+            else
+            {
+                transform.position = new Vector3(0f, 0f, transform.position.z);
+            }
+
             if (gridSystem == null)
             {
                 return;
+            }
+
+            _gridCenterCellX = (gridSystem.MinX + gridSystem.MaxX) * 0.5f;
+            _gridCenterCellY = (gridSystem.MinY + gridSystem.MaxY) * 0.5f;
+            _activeGridSystem = gridSystem;
+
+            if (_refreshLinksCoroutine != null)
+            {
+                StopCoroutine(_refreshLinksCoroutine);
+                _refreshLinksCoroutine = null;
             }
 
             for (int i = 0; i < gridSystem.Blocks.Count; i++)
@@ -65,6 +124,61 @@ namespace TapAway
                 block.Moved += OnBlockMoved;
                 block.Removed += OnBlockRemoved;
             }
+
+            RefreshAllRotatorLinks();
+        }
+
+        private IEnumerator PreloadAddressablePrefabs()
+        {
+            // Preload 3 prefab chính của grid trước khi Build để tránh missing prefab frame đầu.
+            yield return LoadPrefabFromAddressable(_normalBlockPrefabRef, prefab =>
+            {
+                _normalBlockPrefab = prefab;
+            }, handle => _normalPrefabHandle = handle);
+
+            yield return LoadPrefabFromAddressable(_gearBlockPrefabRef, prefab =>
+            {
+                _gearBlockPrefab = prefab;
+            }, handle => _gearPrefabHandle = handle);
+
+            yield return LoadPrefabFromAddressable(_rotatorBlockPrefabRef, prefab =>
+            {
+                _rotatorBlockPrefab = prefab;
+            }, handle => _rotatorPrefabHandle = handle);
+
+            _isReady = true;
+        }
+
+        private static IEnumerator LoadPrefabFromAddressable(
+            AssetReferenceT<GameObject> prefabReference,
+            System.Action<GameObject> onLoaded,
+            System.Action<AsyncOperationHandle<GameObject>> onHandle)
+        {
+            if (prefabReference == null || !prefabReference.RuntimeKeyIsValid())
+            {
+                Debug.LogWarning("[GridView] Missing Addressable prefab reference.");
+                yield break;
+            }
+
+            AsyncOperationHandle<GameObject> handle = prefabReference.LoadAssetAsync<GameObject>();
+            yield return handle;
+            if (handle.Status != AsyncOperationStatus.Succeeded || handle.Result == null)
+            {
+                yield break;
+            }
+
+            onHandle?.Invoke(handle);
+            onLoaded?.Invoke(handle.Result);
+        }
+
+        private static void ReleaseHandleIfValid(AsyncOperationHandle<GameObject> handle)
+        {
+            if (!handle.IsValid())
+            {
+                return;
+            }
+
+            Addressables.Release(handle);
         }
 
         public bool TryGetBlockByCollider(Collider2D collider2D, out Block block)
@@ -90,14 +204,48 @@ namespace TapAway
         public bool TryGetBlockAtWorldPosition(Vector3 worldPosition, out Block block)
         {
             Vector3 local = transform.InverseTransformPoint(worldPosition);
+            float pitch = _cellSize + _blockSpacing;
             Vector2Int cell = new Vector2Int(
-                Mathf.RoundToInt(local.x / _cellSize),
-                Mathf.RoundToInt(local.y / _cellSize));
+                Mathf.RoundToInt(local.x / pitch + _gridCenterCellX),
+                Mathf.RoundToInt(local.y / pitch + _gridCenterCellY));
 
             return _blockByPosition.TryGetValue(cell, out block);
         }
 
-        public void PlayBlockedChainFeedback(IReadOnlyList<Block> blockerChain)
+        public Vector2Int WorldToCell(Vector3 worldPosition)
+        {
+            Vector3 local = transform.InverseTransformPoint(worldPosition);
+            float pitch = _cellSize + _blockSpacing;
+            return new Vector2Int(
+                Mathf.RoundToInt(local.x / pitch + _gridCenterCellX),
+                Mathf.RoundToInt(local.y / pitch + _gridCenterCellY));
+        }
+
+        public void PlayGearTapFeedback(Block gearBlock)
+        {
+            if (gearBlock == null)
+            {
+                return;
+            }
+
+            if (!_viewByBlock.TryGetValue(gearBlock, out MonoBehaviour view) || view == null)
+            {
+                return;
+            }
+
+            GearView gearView = view as GearView;
+            if (gearView == null)
+            {
+                return;
+            }
+
+            gearView.PlayTapFeedback();
+        }
+
+        public void PlayBlockedChainFeedback(
+            IReadOnlyList<Block> blockerChain,
+            bool colorPrimaryBlocker,
+            float impactDelay)
         {
             if (blockerChain == null || blockerChain.Count == 0)
             {
@@ -117,23 +265,104 @@ namespace TapAway
                     continue;
                 }
 
-                float delay = _blockedShakeStepDelay * i;
-                bool isPrimaryBlocker = i == 0;
+                float delay = Mathf.Max(0f, impactDelay) + _blockedShakeStepDelay * i;
+                bool isPrimaryBlocker = colorPrimaryBlocker && i == 0;
                 StartCoroutine(PlayBlockedFeedbackCoroutine(view, delay, isPrimaryBlocker));
             }
+        }
+
+        public bool TryEstimateBlockTravelDuration(Block block, Vector2Int fromCell, Vector2Int toCell, out float duration)
+        {
+            duration = 0f;
+            if (block == null)
+            {
+                return false;
+            }
+
+            if (!_viewByBlock.TryGetValue(block, out MonoBehaviour view) || !(view is BlockView blockView))
+            {
+                return false;
+            }
+
+            float speed = Mathf.Max(0.01f, blockView.GridMoveSpeed);
+            float distance = Vector2Int.Distance(fromCell, toCell) * CellPitch;
+            duration = distance / speed;
+            return true;
         }
 
         public bool HasRemovingBlocks()
         {
             foreach (MonoBehaviour view in _viewByBlock.Values)
             {
-                if (view is BlockView blockView && (blockView.IsRemoving || blockView.IsPreparingRemove))
+                if (view is BlockView blockView
+                    && (blockView.IsRemoving || blockView.IsPreparingRemove || blockView.IsGridMoving))
                 {
                     return true;
                 }
             }
 
             return false;
+        }
+
+        public float PlaySoftlockFeedback(IReadOnlyList<Block> blockedNormals)
+        {
+            if (blockedNormals == null || blockedNormals.Count == 0)
+            {
+                return 0f;
+            }
+
+            List<MonoBehaviour> views = new List<MonoBehaviour>();
+            for (int i = 0; i < blockedNormals.Count; i++)
+            {
+                Block block = blockedNormals[i];
+                if (block == null)
+                {
+                    continue;
+                }
+
+                if (!_viewByBlock.TryGetValue(block, out MonoBehaviour view) || view == null)
+                {
+                    continue;
+                }
+
+                views.Add(view);
+            }
+
+            if (views.Count == 0)
+            {
+                return 0f;
+            }
+
+            if (_softlockFeedbackCoroutine != null)
+            {
+                StopCoroutine(_softlockFeedbackCoroutine);
+            }
+
+            _softlockFeedbackCoroutine = StartCoroutine(PlaySoftlockFeedbackSequential(views));
+
+            float oneBlockDuration = _blockedShakeDuration;
+            return views.Count * oneBlockDuration + Mathf.Max(0, views.Count - 1) * _blockedShakeStepDelay;
+        }
+
+        private IEnumerator PlaySoftlockFeedbackSequential(IReadOnlyList<MonoBehaviour> views)
+        {
+            for (int i = 0; i < views.Count; i++)
+            {
+                MonoBehaviour view = views[i];
+                if (view == null)
+                {
+                    continue;
+                }
+
+                yield return PlayBlockedFeedbackCoroutine(view, 0f, true, true);
+
+                if (i < views.Count - 1 && _blockedShakeStepDelay > 0f)
+                {
+                    yield return new WaitForSeconds(_blockedShakeStepDelay);
+                }
+            }
+
+            _softlockFeedbackCoroutine = null;
         }
 
         private MonoBehaviour BindView(GameObject go, Block block, LevelVisualTheme visualTheme, int trailBindingIndex)
@@ -206,7 +435,11 @@ namespace TapAway
 
         private Vector3 ToLocalPosition(Vector2Int cell)
         {
-            return new Vector3(cell.x * _cellSize, cell.y * _cellSize, 0f);
+            float pitch = _cellSize + _blockSpacing;
+            return new Vector3(
+                (cell.x - _gridCenterCellX) * pitch,
+                (cell.y - _gridCenterCellY) * pitch,
+                0f);
         }
 
         private void ClearChildren()
@@ -251,8 +484,18 @@ namespace TapAway
 
             if (_viewByBlock.TryGetValue(block, out MonoBehaviour view) && view != null)
             {
-                view.transform.localPosition = ToLocalPosition(newPos);
+                Vector3 targetPos = ToLocalPosition(newPos);
+                if (view is BlockView blockView)
+                {
+                    blockView.AnimateGridMoveTo(targetPos);
+                }
+                else
+                {
+                    view.transform.localPosition = targetPos;
+                }
             }
+
+            QueueRefreshAllRotatorLinks();
         }
 
         private void OnBlockRemoved(Block block)
@@ -263,9 +506,73 @@ namespace TapAway
             }
 
             _blockByPosition.Remove(block.Position);
+            QueueRefreshAllRotatorLinks();
         }
 
-        private IEnumerator PlayBlockedFeedbackCoroutine(MonoBehaviour view, float delay, bool isPrimaryBlocker)
+        private void QueueRefreshAllRotatorLinks()
+        {
+            if (_refreshLinksCoroutine != null)
+            {
+                return;
+            }
+
+            _refreshLinksCoroutine = StartCoroutine(RefreshAllRotatorLinksNextFrame());
+        }
+
+        private IEnumerator RefreshAllRotatorLinksNextFrame()
+        {
+            yield return null;
+            RefreshAllRotatorLinks();
+            _refreshLinksCoroutine = null;
+        }
+
+        private void RefreshAllRotatorLinks()
+        {
+            if (_activeGridSystem == null)
+            {
+                return;
+            }
+
+            foreach (KeyValuePair<Block, MonoBehaviour> pair in _viewByBlock)
+            {
+                Block block = pair.Key;
+                MonoBehaviour view = pair.Value;
+
+                if (block == null || view == null || block.Type != CellType.Rotator)
+                {
+                    continue;
+                }
+
+                RotatorView rotatorView = view as RotatorView;
+                if (rotatorView == null)
+                {
+                    continue;
+                }
+
+                rotatorView.RefreshLinks(_activeGridSystem, GetBlockLocalPositionForLink, ToLocalPosition);
+            }
+        }
+
+        private Vector3 GetBlockLocalPositionForLink(Block block)
+        {
+            if (block == null)
+            {
+                return Vector3.zero;
+            }
+
+            if (_viewByBlock.TryGetValue(block, out MonoBehaviour view) && view != null)
+            {
+                return view.transform.localPosition;
+            }
+
+            return ToLocalPosition(block.Position);
+        }
+
+        private IEnumerator PlayBlockedFeedbackCoroutine(
+            MonoBehaviour view,
+            float delay,
+            bool isPrimaryBlocker,
+            bool keepWarnColor = false)
         {
             if (delay > 0f)
             {
@@ -277,7 +584,7 @@ namespace TapAway
                 yield break;
             }
 
-            SpriteRenderer[] renderers = view.GetComponentsInChildren<SpriteRenderer>();
+            SpriteRenderer[] renderers = ResolveWarningRenderers(view);
             Color[] originalColors = null;
             if (isPrimaryBlocker && renderers != null && renderers.Length > 0)
             {
@@ -292,9 +599,16 @@ namespace TapAway
             Transform target = view.transform;
             Vector3 originalPosition = target.localPosition;
             float elapsed = 0f;
+            bool interruptedByGridMove = false;
 
             while (elapsed < _blockedShakeDuration)
             {
+                if (view is BlockView blockView && blockView.IsGridMoving)
+                {
+                    interruptedByGridMove = true;
+                    break;
+                }
+
                 elapsed += Time.deltaTime;
                 float progress = _blockedShakeDuration <= 0f ? 1f : Mathf.Clamp01(elapsed / _blockedShakeDuration);
                 float strength = 1f - progress;
@@ -303,12 +617,12 @@ namespace TapAway
                 yield return null;
             }
 
-            if (target != null)
+            if (!interruptedByGridMove && target != null)
             {
                 target.localPosition = originalPosition;
             }
 
-            if (!isPrimaryBlocker || originalColors == null)
+            if (!isPrimaryBlocker || originalColors == null || keepWarnColor)
             {
                 yield break;
             }
@@ -325,6 +639,24 @@ namespace TapAway
                     renderers[i].color = originalColors[i];
                 }
             }
+        }
+
+        private SpriteRenderer[] ResolveWarningRenderers(MonoBehaviour view)
+        {
+            if (view is RotatorView rotatorView)
+            {
+                _warnRendererBuffer.Clear();
+                rotatorView.CollectWarningRenderers(_warnRendererBuffer);
+
+                if (_warnRendererBuffer.Count == 0)
+                {
+                    return view.GetComponentsInChildren<SpriteRenderer>();
+                }
+
+                return _warnRendererBuffer.ToArray();
+            }
+
+            return view.GetComponentsInChildren<SpriteRenderer>();
         }
     }
 }

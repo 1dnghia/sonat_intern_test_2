@@ -3,6 +3,14 @@ using UnityEngine;
 
 namespace TapAway.Core
 {
+    public enum BlockRemoveReason
+    {
+        ExitGrid = 0,
+        HitGear = 1,
+        Bomb = 2,
+        Other = 3,
+    }
+
     [Serializable]
     public class Block
     {
@@ -11,6 +19,7 @@ namespace TapAway.Core
         public CellType Type { get; }
         public bool IsRemoved { get; private set; }
         public BlockDirection Direction { get; private set; }
+        public BlockRemoveReason RemoveReason { get; private set; }
 
         public event Action<Block> Removed;
         public event Action<Block> Rotated;
@@ -23,11 +32,12 @@ namespace TapAway.Core
             Direction = data.direction;
             Type = data.cellType;
             IsRemoved = false;
+            RemoveReason = BlockRemoveReason.Other;
         }
 
         public bool IsRemovable => Type == CellType.Normal || Type == CellType.Rotator;
 
-        public bool TryRemove()
+        public bool TryRemove(BlockRemoveReason reason = BlockRemoveReason.Other)
         {
             if (IsRemoved || !IsRemovable)
             {
@@ -35,6 +45,7 @@ namespace TapAway.Core
             }
 
             IsRemoved = true;
+            RemoveReason = reason;
             Removed?.Invoke(this);
             return true;
         }
@@ -47,6 +58,17 @@ namespace TapAway.Core
             }
 
             Direction = (BlockDirection)(((int)Direction + 1) % 4);
+            Rotated?.Invoke(this);
+            return true;
+        }
+
+        public bool NotifyRotated()
+        {
+            if (IsRemoved || Type != CellType.Rotator)
+            {
+                return false;
+            }
+
             Rotated?.Invoke(this);
             return true;
         }

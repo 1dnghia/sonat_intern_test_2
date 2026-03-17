@@ -1,6 +1,8 @@
 using TapAway.Core;
 using System.Collections;
 using UnityEngine;
+using UnityEngine.AddressableAssets;
+using UnityEngine.ResourceManagement.AsyncOperations;
 
 namespace TapAway
 {
@@ -14,36 +16,52 @@ namespace TapAway
         [SerializeField] private Transform _arrow;
         // Tốc độ trượt khi block bị remove.
         [SerializeField, Min(0.1f)] private float _removeSlideSpeed = 20f;
+        // Gia tốc khi block đã ra khỏi grid để tạo cảm giác phi ra ngoài.
+        [SerializeField, Min(0f)] private float _removeAcceleration = 50f;
         // Khoảng đệm ra ngoài mép màn hình trước khi ẩn block.
         [SerializeField, Min(0f)] private float _offscreenPadding = 0.25f;
         // Alpha sát block (đầu vệt), theo mockup là khoảng 0.7.
         [SerializeField, Range(0f, 1f)] private float _slideTrailHeadAlpha = 0.7f;
         // Alpha ở đuôi vệt, theo mockup là 0.
         [SerializeField, Range(0f, 1f)] private float _slideTrailTailAlpha = 0f;
+        // Độ dài tối đa của trail phía sau block.
+        [SerializeField, Min(0.05f)] private float _slideTrailMaxLength = 1.75f;
         // Scale nhỏ nhất khi nhấn block trước khi trượt remove.
         [SerializeField, Range(0.6f, 1f)] private float _tapPressScale = 0.88f;
         // Thời gian thu nhỏ khi nhấn.
         [SerializeField, Min(0.01f)] private float _tapPressDownDuration = 0.05f;
         // Thời gian phục hồi scale về trạng thái ban đầu.
         [SerializeField, Min(0.01f)] private float _tapPressUpDuration = 0.08f;
+        // Material override cho trail; nếu null sẽ dùng material mặc định được tạo runtime.
         [SerializeField] private Material _trailMaterialOverride;
+        // VFX khi normal block bị Gear cắt.
+        [SerializeField] private AssetReferenceT<GameObject> _gearHitVfxPrefabRef;
 
         private Block _block;
         private Camera _mainCamera;
         private SpriteRenderer _mainSpriteRenderer;
         private LineRenderer _slideTrailRenderer;
         private Coroutine _prepareRemoveCoroutine;
+        private Coroutine _gridMoveCoroutine;
         private Gradient _trailGradient;
         private bool _isRemoving;
         private bool _isPreparingRemove;
+        private bool _isGridMoving;
+        private bool _pendingRemoveAfterGridMove;
+        private bool _hasPrecomputedRemoveStart;
         private bool _hasTrailColorOverride;
         private Vector3 _removeDirection;
         private Vector3 _removeStartWorldPosition;
         private Vector3 _initialLocalScale;
+        private float _currentRemoveSpeed;
         private Color _trailColorOverride = Color.white;
+        private AsyncOperationHandle<GameObject> _gearHitVfxHandle;
+        private GameObject _gearHitVfxLoaded;
 
         public bool IsRemoving => _isRemoving;
         public bool IsPreparingRemove => _isPreparingRemove;
+        public bool IsGridMoving => _isGridMoving;
+        public float GridMoveSpeed => _removeSlideSpeed;
 
         private void Awake()
         {
@@ -51,6 +69,8 @@ namespace TapAway
             _mainSpriteRenderer = ResolveMainSpriteRenderer();
             _initialLocalScale = transform.localScale;
             SetupSlideTrail();
+
+            StartCoroutine(LoadGearHitVfxAddressable());
         }
 
         public void Initialise(Block block)
@@ -68,10 +88,21 @@ namespace TapAway
                 _prepareRemoveCoroutine = null;
             }
 
+            if (_gridMoveCoroutine != null)
+            {
+                StopCoroutine(_gridMoveCoroutine);
+                _gridMoveCoroutine = null;
+            }
+
             if (_slideTrailRenderer != null)
             {
                 _slideTrailRenderer.enabled = false;
             }
+
+            _isGridMoving = false;
+            _pendingRemoveAfterGridMove = false;
+            _hasPrecomputedRemoveStart = false;
+            _currentRemoveSpeed = _removeSlideSpeed;
 
             _mainSpriteRenderer = ResolveMainSpriteRenderer();
             SyncSlideTrailSorting();
@@ -105,9 +136,20 @@ namespace TapAway
                 _prepareRemoveCoroutine = null;
             }
 
+            if (_gridMoveCoroutine != null)
+            {
+                StopCoroutine(_gridMoveCoroutine);
+                _gridMoveCoroutine = null;
+            }
+
             if (_block != null)
             {
                 _block.Removed -= OnRemoved;
+            }
+
+            if (_gearHitVfxHandle.IsValid())
+            {
+                Addressables.Release(_gearHitVfxHandle);
             }
         }
 
@@ -118,7 +160,8 @@ namespace TapAway
                 return;
             }
 
-            transform.position += _removeDirection * (_removeSlideSpeed * Time.deltaTime);
+            _currentRemoveSpeed += _removeAcceleration * Time.deltaTime;
+            transform.position += _removeDirection * (_currentRemoveSpeed * Time.deltaTime);
             if (!IsOutOfScreen())
             {
                 return;
@@ -126,6 +169,9 @@ namespace TapAway
 
             _isRemoving = false;
             _isPreparingRemove = false;
+            _isGridMoving = false;
+            _pendingRemoveAfterGridMove = false;
+            _hasPrecomputedRemoveStart = false;
             transform.localScale = _initialLocalScale;
             if (_slideTrailRenderer != null)
             {
@@ -137,7 +183,12 @@ namespace TapAway
 
         private void LateUpdate()
         {
-            if (!_isRemoving)
+            bool shouldPreviewExitTrail = _isGridMoving
+                && _pendingRemoveAfterGridMove
+                && _block != null
+                && _block.RemoveReason == BlockRemoveReason.ExitGrid;
+
+            if (!_isRemoving && !shouldPreviewExitTrail)
             {
                 return;
             }
@@ -153,25 +204,66 @@ namespace TapAway
                 return;
             }
 
-            _removeDirection = DirectionToVector(_block.Direction).normalized;
-            _removeStartWorldPosition = transform.position;
-            _isPreparingRemove = true;
-
-            if (_prepareRemoveCoroutine != null)
+            if (_isGridMoving || _gridMoveCoroutine != null)
             {
-                StopCoroutine(_prepareRemoveCoroutine);
+                _pendingRemoveAfterGridMove = true;
+
+                if (_block.RemoveReason == BlockRemoveReason.ExitGrid)
+                {
+                    _removeDirection = DirectionToVector(_block.Direction).normalized;
+                    _removeStartWorldPosition = transform.position;
+                    _hasPrecomputedRemoveStart = true;
+
+                    if (_slideTrailRenderer != null)
+                    {
+                        _slideTrailRenderer.enabled = true;
+                        UpdateSlideTrail();
+                    }
+                }
+
+                return;
             }
 
-            _prepareRemoveCoroutine = StartCoroutine(PlayTapPressAndStartRemove());
+            if (_gridMoveCoroutine != null)
+            {
+                StopCoroutine(_gridMoveCoroutine);
+                _gridMoveCoroutine = null;
+            }
+
+            _isGridMoving = false;
+
+            StartRemoveSequence();
         }
 
         private IEnumerator PlayTapPressAndStartRemove()
         {
+            if (_block != null && _block.RemoveReason == BlockRemoveReason.HitGear)
+            {
+                if (AudioManager.Instance != null)
+                {
+                    AudioManager.Instance.PlayNormalHitGear();
+                }
+
+                SpawnGearHitVfx();
+                gameObject.SetActive(false);
+                _isPreparingRemove = false;
+                _isRemoving = false;
+                _prepareRemoveCoroutine = null;
+                yield break;
+            }
+
+            if (_block != null && _block.RemoveReason == BlockRemoveReason.Bomb)
+            {
+                // Bomb xóa block ngay tại chỗ, không chạy animation trượt ra khỏi màn hình.
+                gameObject.SetActive(false);
+                _isPreparingRemove = false;
+                _isRemoving = false;
+                _prepareRemoveCoroutine = null;
+                yield break;
+            }
+
             _isRemoving = false;
             transform.localScale = _initialLocalScale;
-
-            yield return ScaleOverTime(_initialLocalScale, _initialLocalScale * _tapPressScale, _tapPressDownDuration);
-            yield return ScaleOverTime(transform.localScale, _initialLocalScale, _tapPressUpDuration);
 
             transform.localScale = _initialLocalScale;
 
@@ -184,6 +276,112 @@ namespace TapAway
             _isPreparingRemove = false;
             _isRemoving = true;
             _prepareRemoveCoroutine = null;
+        }
+
+        public void AnimateGridMoveTo(Vector3 targetLocalPosition)
+        {
+            if (!gameObject.activeInHierarchy)
+            {
+                transform.localPosition = targetLocalPosition;
+                _isGridMoving = false;
+                return;
+            }
+
+            _isGridMoving = true;
+
+            if (_gridMoveCoroutine != null)
+            {
+                StopCoroutine(_gridMoveCoroutine);
+            }
+
+            _gridMoveCoroutine = StartCoroutine(AnimateGridMoveCoroutine(targetLocalPosition));
+        }
+
+        private IEnumerator AnimateGridMoveCoroutine(Vector3 targetLocalPosition)
+        {
+            _isGridMoving = true;
+            if (_slideTrailRenderer != null)
+            {
+                _slideTrailRenderer.enabled = false;
+            }
+
+            while ((transform.localPosition - targetLocalPosition).sqrMagnitude > 0.000001f)
+            {
+                transform.localPosition = Vector3.MoveTowards(
+                    transform.localPosition,
+                    targetLocalPosition,
+                    _removeSlideSpeed * Time.deltaTime);
+                yield return null;
+            }
+
+            transform.localPosition = targetLocalPosition;
+            _isGridMoving = false;
+            _gridMoveCoroutine = null;
+
+            if (_pendingRemoveAfterGridMove)
+            {
+                _pendingRemoveAfterGridMove = false;
+                StartRemoveSequence();
+            }
+        }
+
+        private void StartRemoveSequence()
+        {
+            _removeDirection = DirectionToVector(_block.Direction).normalized;
+            if (!_hasPrecomputedRemoveStart)
+            {
+                _removeStartWorldPosition = transform.position;
+            }
+
+            _currentRemoveSpeed = _removeSlideSpeed;
+            _isPreparingRemove = true;
+            _hasPrecomputedRemoveStart = false;
+
+            if (_prepareRemoveCoroutine != null)
+            {
+                StopCoroutine(_prepareRemoveCoroutine);
+            }
+
+            _prepareRemoveCoroutine = StartCoroutine(PlayTapPressAndStartRemove());
+        }
+
+        private void SpawnGearHitVfx()
+        {
+            GameObject vfxPrefab = _gearHitVfxLoaded;
+            if (vfxPrefab == null)
+            {
+                return;
+            }
+
+            GameObject vfx = Instantiate(vfxPrefab, transform.position, Quaternion.identity);
+            ParticleSystem particle = vfx.GetComponentInChildren<ParticleSystem>();
+            if (particle == null)
+            {
+                Destroy(vfx, 1.5f);
+                return;
+            }
+
+            ParticleSystem.MainModule main = particle.main;
+            float lifetime = main.duration + main.startLifetime.constantMax;
+            Destroy(vfx, Mathf.Max(0.5f, lifetime));
+        }
+
+        private IEnumerator LoadGearHitVfxAddressable()
+        {
+            if (_gearHitVfxPrefabRef == null || !_gearHitVfxPrefabRef.RuntimeKeyIsValid())
+            {
+                Debug.LogWarning("[BlockView] Missing Gear Hit VFX Addressable reference.", this);
+                yield break;
+            }
+
+            _gearHitVfxHandle = _gearHitVfxPrefabRef.LoadAssetAsync<GameObject>();
+            yield return _gearHitVfxHandle;
+            if (_gearHitVfxHandle.Status != AsyncOperationStatus.Succeeded)
+            {
+                yield break;
+            }
+
+            _gearHitVfxLoaded = _gearHitVfxHandle.Result;
         }
 
         private IEnumerator ScaleOverTime(Vector3 from, Vector3 to, float duration)
@@ -248,12 +446,19 @@ namespace TapAway
             }
 
             Vector3 direction = _removeDirection.normalized;
+            if (direction.sqrMagnitude <= 0.000001f)
+            {
+                return;
+            }
+
             float halfWidth = GetVisualHalfWidth();
             float halfHeight = GetVisualHalfHeight();
             float fullEdgeWidth = Mathf.Abs(direction.x) > Mathf.Abs(direction.y) ? halfHeight * 2f : halfWidth * 2f;
 
             Vector3 startPos = transform.position;
-            Vector3 endPos = _removeStartWorldPosition;
+            float travelled = Vector3.Dot(startPos - _removeStartWorldPosition, direction);
+            float trailLength = Mathf.Clamp(travelled, 0f, _slideTrailMaxLength);
+            Vector3 endPos = startPos - direction * trailLength;
 
             // Point 0 gần block, point 1 là đuôi trail.
             _slideTrailRenderer.SetPosition(0, startPos);

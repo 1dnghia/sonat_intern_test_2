@@ -1,13 +1,13 @@
 using System;
 using UnityEngine;
+using TapAway.Core;
 
 namespace TapAway
 {
-    // Ví tiền dùng chung cho HUD và popup; lưu qua PlayerPrefs để giữ coin giữa các lần load scene.
+    // Ví tiền dùng chung cho HUD và popup; lưu qua file JSON player_data.json.
     public static class CoinWallet
     {
-        private const string COIN_KEY = "tapaway_coin_balance";
-        private static int _cachedBalance = int.MinValue;
+        private static int _cachedBalance = -1;
 
         public static event Action<int> OnCoinChanged;
 
@@ -15,9 +15,9 @@ namespace TapAway
         {
             get
             {
-                if (_cachedBalance == int.MinValue)
+                if (_cachedBalance < 0)
                 {
-                    _cachedBalance = Mathf.Max(0, PlayerPrefs.GetInt(COIN_KEY, 0));
+                    _cachedBalance = Mathf.Max(0, PlayerSaveDataStore.Data.coinBalance);
                 }
 
                 return _cachedBalance;
@@ -33,8 +33,8 @@ namespace TapAway
             }
 
             _cachedBalance = safeValue;
-            PlayerPrefs.SetInt(COIN_KEY, _cachedBalance);
-            PlayerPrefs.Save();
+            PlayerSaveDataStore.Data.coinBalance = _cachedBalance;
+            PlayerSaveDataStore.Save();
             OnCoinChanged?.Invoke(_cachedBalance);
         }
 
@@ -62,6 +62,12 @@ namespace TapAway
 
             Set(Balance - amount);
             return true;
+        }
+
+        public static void ReloadFromSave()
+        {
+            _cachedBalance = Mathf.Max(0, PlayerSaveDataStore.Data.coinBalance);
+            OnCoinChanged?.Invoke(_cachedBalance);
         }
     }
 }

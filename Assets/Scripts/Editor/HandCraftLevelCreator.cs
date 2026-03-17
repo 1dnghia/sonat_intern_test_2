@@ -29,6 +29,9 @@ namespace TapAway.Editor
                 level.width = 6;
                 level.height = 6;
                 level.moveLimit = 20;
+                level.CreateGridTemplate(false);
+                level.visualTheme = LevelVisualThemeAutoAssign.ResolveDefaultTheme();
+                level.trailBindingIndex = 0;
 
                 AssetDatabase.CreateAsset(level, path);
             }

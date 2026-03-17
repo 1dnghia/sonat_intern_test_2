@@ -7,9 +7,13 @@ namespace TapAway
 {
     public class WinPanel : MonoBehaviour
     {
+        // Root của panel thắng; fallback dùng chính GameObject hiện tại.
         [SerializeField] private GameObject _root;
+        // Nút nhận thưởng nhiều hơn (ads).
         [SerializeField] private Button _getMoreButton;
+        // Nút nhận thưởng thường.
         [SerializeField] private Button _getButton;
+        // Text hiển thị số coin hiện tại.
         [SerializeField] private TextMeshProUGUI _coinText;
 
         public event Action GetMorePressed;
@@ -54,11 +58,21 @@ namespace TapAway
 
         private void OnGetMoreClicked()
         {
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlayUiClick();
+            }
+
             GetMorePressed?.Invoke();
         }
 
         private void OnGetClicked()
         {
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlayUiClick();
+            }
+
             GetPressed?.Invoke();
         }
     }

@@ -7,6 +7,18 @@ namespace TapAway.Editor
     [CustomEditor(typeof(LevelData))]
     public class LevelDataEditor : UnityEditor.Editor
     {
+        private static readonly string[] MAP_SIZE_OPTIONS =
+        {
+            "2x2",
+            "3x3",
+            "4x4",
+            "5x5",
+            "6x6",
+            "7x7",
+            "8x8",
+            "9x9",
+        };
+
         private SerializedProperty _widthProperty;
         private SerializedProperty _heightProperty;
         private SerializedProperty _moveLimitProperty;
@@ -28,6 +40,7 @@ namespace TapAway.Editor
         {
             serializedObject.Update();
 
+            DrawMapSizeDropdown();
             EditorGUILayout.PropertyField(_widthProperty);
             EditorGUILayout.PropertyField(_heightProperty);
             EditorGUILayout.PropertyField(_moveLimitProperty);
@@ -37,7 +50,76 @@ namespace TapAway.Editor
 
             EditorGUILayout.PropertyField(_blocksProperty, true);
 
+            DrawTemplateTools();
+
             serializedObject.ApplyModifiedProperties();
+        }
+
+        private void DrawMapSizeDropdown()
+        {
+            LevelData levelData = (LevelData)target;
+            int currentWidth = Mathf.Max(1, _widthProperty.intValue);
+            int currentHeight = Mathf.Max(1, _heightProperty.intValue);
+
+            int selectedIndex = Mathf.Clamp(currentWidth - 2, 0, MAP_SIZE_OPTIONS.Length - 1);
+            if (currentWidth == currentHeight && currentWidth >= 2 && currentWidth <= 9)
+            {
+                selectedIndex = currentWidth - 2;
+            }
+
+            int newIndex = EditorGUILayout.Popup(new GUIContent("Map Size"), selectedIndex, MAP_SIZE_OPTIONS);
+            if (newIndex == selectedIndex)
+            {
+                return;
+            }
+
+            int newSize = newIndex + 2;
+            Undo.RecordObject(levelData, "Change Map Size");
+            _widthProperty.intValue = newSize;
+            _heightProperty.intValue = newSize;
+            serializedObject.ApplyModifiedProperties();
+
+            levelData.CreateGridTemplate(true);
+            EditorUtility.SetDirty(levelData);
+            serializedObject.Update();
+        }
+
+        private void DrawTemplateTools()
+        {
+            LevelData levelData = (LevelData)target;
+
+            EditorGUILayout.Space(8f);
+            EditorGUILayout.LabelField("Map Tools", EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(
+                "Tao san danh sach cell theo width/height de ban chi can sua cellType/direction.",
+                MessageType.Info);
+
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                if (GUILayout.Button("Refresh Template (Keep Existing)"))
+                {
+                    Undo.RecordObject(levelData, "Refresh Level Template");
+                    levelData.CreateGridTemplate(true);
+                    EditorUtility.SetDirty(levelData);
+                    serializedObject.Update();
+                }
+
+                if (GUILayout.Button("Rebuild Empty Template"))
+                {
+                    Undo.RecordObject(levelData, "Rebuild Empty Template");
+                    levelData.CreateGridTemplate(false);
+                    EditorUtility.SetDirty(levelData);
+                    serializedObject.Update();
+                }
+            }
+
+            if (GUILayout.Button("Normalize Blocks To Map Size"))
+            {
+                Undo.RecordObject(levelData, "Normalize Blocks To Map Size");
+                levelData.NormalizeToMapBounds();
+                EditorUtility.SetDirty(levelData);
+                serializedObject.Update();
+            }
         }
 
         private void DrawTrailBindingDropdown()

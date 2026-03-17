@@ -7,9 +7,13 @@ namespace TapAway
 {
     public class TapInputHandler : MonoBehaviour
     {
+        // Camera dùng để convert tọa độ màn hình sang world.
         [SerializeField] private Camera _camera;
+        // Tham chiếu GridView để map collider sang block logic.
         [SerializeField] private GridView _gridView;
+        // Tham chiếu GameManager để gửi hành động tap.
         [SerializeField] private GameManager _gameManager;
+        // Layer mask giới hạn collider được coi là block.
         [SerializeField] private LayerMask _blockLayerMask = ~0;
 
         private void Awake()
@@ -49,7 +53,11 @@ namespace TapAway
             if (_gridView.TryGetBlockAtWorldPosition(worldPos, out Block blockByPos))
             {
                 _gameManager.TapBlock(blockByPos);
+                return;
             }
+
+            Vector2Int cell = _gridView.WorldToCell(worldPos);
+            _gameManager.TapGridCell(cell);
         }
 
         private bool TryGetTapWorldPosition(out Vector3 worldPosition)
