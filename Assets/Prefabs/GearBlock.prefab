@@ -140,6 +140,9 @@ MonoBehaviour:
   _mainVisual: {fileID: 1797410931042897232}
   _shadowVisual: {fileID: 1962785028836659758}
   _spinSpeed: 90
+  _tapScale: 0.9
+  _tapDownDuration: 0.04
+  _tapUpDuration: 0.08
 --- !u!1 &7640014560612402462
 GameObject:
   m_ObjectHideFlags: 0
@@ -166,7 +169,7 @@ Transform:
   m_GameObject: {fileID: 7640014560612402462}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.04, z: 0}
+  m_LocalPosition: {x: 0, y: -0.04, z: 1}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []

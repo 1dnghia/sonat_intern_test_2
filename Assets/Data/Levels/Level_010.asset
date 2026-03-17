@@ -10,35 +10,35 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: c41f5a038e4ad164e93af8fdf4a75164, type: 3}
-  m_Name: Level_002
+  m_Name: Level_010
   m_EditorClassIdentifier: Assembly-CSharp::TapAway.Core.LevelData
   width: 3
   height: 3
-  moveLimit: 20
+  moveLimit: 17
   blocks:
   - id: 1
-    position: {x: 2, y: 0}
-    direction: 3
+    position: {x: 1, y: 2}
+    direction: 2
     cellType: 1
     rotatorLinkedNormals: []
   - id: 2
+    position: {x: 2, y: 1}
+    direction: 1
+    cellType: 1
+    rotatorLinkedNormals: []
+  - id: 3
     position: {x: 0, y: 2}
     direction: 0
     cellType: 1
     rotatorLinkedNormals: []
-  - id: 3
-    position: {x: 2, y: 2}
-    direction: 1
-    cellType: 1
-    rotatorLinkedNormals: []
   - id: 4
-    position: {x: 1, y: 1}
+    position: {x: 1, y: 0}
     direction: 1
     cellType: 1
     rotatorLinkedNormals: []
   - id: 5
-    position: {x: 1, y: 2}
-    direction: 3
+    position: {x: 0, y: 0}
+    direction: 0
     cellType: 1
     rotatorLinkedNormals: []
   - id: 6
@@ -46,20 +46,5 @@ MonoBehaviour:
     direction: 0
     cellType: 1
     rotatorLinkedNormals: []
-  - id: 7
-    position: {x: 2, y: 1}
-    direction: 2
-    cellType: 1
-    rotatorLinkedNormals: []
-  - id: 8
-    position: {x: 1, y: 0}
-    direction: 2
-    cellType: 1
-    rotatorLinkedNormals: []
-  - id: 9
-    position: {x: 0, y: 0}
-    direction: 0
-    cellType: 1
-    rotatorLinkedNormals: []
   visualTheme: {fileID: 11400000, guid: 8e5d815f0fce41f44be243258e6ecc71, type: 2}
-  trailBindingIndex: 3
+  trailBindingIndex: 1

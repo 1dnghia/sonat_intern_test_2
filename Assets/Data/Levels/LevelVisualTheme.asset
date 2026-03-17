@@ -12,8 +12,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dafed9620ed90ad4db1b20853fe323f6, type: 3}
   m_Name: LevelVisualTheme
   m_EditorClassIdentifier: Assembly-CSharp::TapAway.Core.LevelVisualTheme
-  _removeSlideSpeed: 10
-  _normalBlockPalette:
-  - {r: 1, g: 1, b: 1, a: 1}
-  _useCustomTrailColor: 1
-  _trailColor: {r: 1, g: 1, b: 1, a: 1}
+  _trailBindings:
+  - _blockSprite: {fileID: 21300000, guid: 7f27578d2c8c14148bef700bac6faa19, type: 3}
+    _trailColor: {r: 0.3254902, g: 0.84313726, b: 0.6784314, a: 0}
+  - _blockSprite: {fileID: 21300000, guid: 2a9efe01678f38e45a34788671a7ead1, type: 3}
+    _trailColor: {r: 0, g: 1, b: 0.008504152, a: 0}
+  - _blockSprite: {fileID: 21300000, guid: c31c020a45c2e1c4aa6313e4327ef12b, type: 3}
+    _trailColor: {r: 1, g: 0.0141509175, b: 0.4940211, a: 0}
+  - _blockSprite: {fileID: 21300000, guid: 5ce3d1e2969a3144fae77abb5c61f3ee, type: 3}
+    _trailColor: {r: 0.990566, g: 0.64564717, b: 0, a: 0}

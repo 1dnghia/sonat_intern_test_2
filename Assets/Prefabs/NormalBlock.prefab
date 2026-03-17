@@ -155,13 +155,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TapAway.BlockView
   _arrow: {fileID: 4966029366335679630}
   _removeSlideSpeed: 20
+  _removeAcceleration: 50
   _offscreenPadding: 0.25
-  _slideTrailHeadAlpha: 0.7
+  _slideTrailHeadAlpha: 1
   _slideTrailTailAlpha: 0
+  _slideTrailMaxLength: 2.5
   _tapPressScale: 0.88
   _tapPressDownDuration: 0.05
   _tapPressUpDuration: 0.08
   _trailMaterialOverride: {fileID: 0}
+  _gearHitVfxPrefabRef:
+    m_AssetGUID: 
+    m_SubObjectName: 
+    m_SubObjectType: 
+    m_SubObjectGUID: 
+    m_EditorAssetChanged: 0
 --- !u!1 &2696875691900526136
 GameObject:
   m_ObjectHideFlags: 0

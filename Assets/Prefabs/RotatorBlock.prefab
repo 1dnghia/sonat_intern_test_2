@@ -233,6 +233,16 @@ MonoBehaviour:
   _capVisual: {fileID: 1165397663565198538}
   _capPopDistance: 1
   _capMoveSpeed: 2
+  _linkPrefab: {fileID: 1531295276873854118, guid: a8aebdace0c41fe47929d28317c5a42e, type: 3}
+  _useAddressablesForLinkPrefab: 1
+  _linkPrefabRef:
+    m_AssetGUID: a8aebdace0c41fe47929d28317c5a42e
+    m_SubObjectName: 
+    m_SubObjectType: 
+    m_SubObjectGUID: 
+    m_EditorAssetChanged: 0
+  _linkBaseLength: 1
+  _linkPivotAtCenter: 1
 --- !u!61 &889283189720199239
 BoxCollider2D:
   m_ObjectHideFlags: 0
